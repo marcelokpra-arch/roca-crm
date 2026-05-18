@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ro-Ca CRM — Conversaciones</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --verde:   #25D366;
+    --verde-d: #128C7E;
+    --azul:    #2563eb;
+    --gris-bg: #f0f2f5;
+    --gris-1:  #e9edef;
+    --gris-2:  #667781;
+    --blanco:  #ffffff;
+    --rojo:    #ef4444;
+    --naranja: #f59e0b;
+  }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--gris-bg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Header */
+  header { background: var(--verde-d); color: white; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  header img { width: 36px; height: 36px; border-radius: 50%; background: white; }
+  header h1 { font-size: 1.1rem; font-weight: 600; }
+  header .status { margin-left: auto; font-size: 0.8rem; opacity: 0.85; }
+
+  /* Layout principal */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar conversaciones */
+  .sidebar { width: 340px; background: white; border-right: 1px solid var(--gris-1); display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--gris-1); display: flex; align-items: center; gap: 8px; }
+  .sidebar-header h2 { font-size: 0.95rem; font-weight: 600; color: #111; flex: 1; }
+  .filtros { display: flex; gap: 6px; }
+  .filtro-btn { border: none; background: var(--gris-1); padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; cursor: pointer; color: var(--gris-2); }
+  .filtro-btn.activo { background: var(--verde); color: white; }
+  .conv-list { overflow-y: auto; flex: 1; }
+  .conv-item { display: flex; align-items: flex-start; padding: 12px 16px; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--gris-1); transition: background .15s; }
+  .conv-item:hover, .conv-item.activa { background: var(--gris-bg); }
+  .conv-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--verde); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 700; flex-shrink: 0; }
+  .conv-info { flex: 1; min-width: 0; }
+  .conv-nombre { font-size: 0.9rem; font-weight: 600; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-preview { font-size: 0.78rem; color: var(--gris-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .conv-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .conv-hora { font-size: 0.7rem; color: var(--gris-2); }
+  .badge-estado { padding: 2px 6px; border-radius: 8px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+  .badge-bot      { background: #dbeafe; color: #1d4ed8; }
+  .badge-abierta  { background: #fef9c3; color: #854d0e; }
+  .badge-resuelta { background: #f0fdf4; color: #166534; }
+
+  /* Panel chat */
+  .chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .chat-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--gris-2); font-size: 0.95rem; }
+
+  /* Chat header */
+  .chat-header { background: var(--gris-1); padding: 10px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+  .chat-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--verde); color: white; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; }
+  .chat-info { flex: 1; }
+  .chat-nombre { font-size: 0.95rem; font-weight: 600; }
+  .chat-telefono { font-size: 0.75rem; color: var(--gris-2); }
+  .acciones { display: flex; gap: 8px; }
+  .btn { border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-tomar   { background: var(--naranja); color: white; }
+  .btn-bot     { background: var(--verde); color: white; }
+  .btn-resolver{ background: var(--gris-2); color: white; }
+  .btn-send    { background: var(--verde-d); color: white; width: 42px; height: 42px; border-radius: 50%; font-size: 1.1rem; flex-shrink: 0; }
+
+  /* Mensajes */
+  .mensajes { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 4px; background: #eae6df url("data:image/png;base64,") }
+  .msg-row { display: flex; }
+  .msg-row.entrada { justify-content: flex-start; }
+  .msg-row.salida  { justify-content: flex-end; }
+  .msg-burbuja { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 0.875rem; line-height: 1.45; position: relative; word-wrap: break-word; }
+  .msg-row.entrada .msg-burbuja { background: white; border-top-left-radius: 0; }
+  .msg-row.salida  .msg-burbuja { background: #d9fdd3; border-top-right-radius: 0; }
+  .msg-enviado { font-size: 0.65rem; color: var(--gris-2); margin-top: 2px; text-align: right; }
+  .msg-hora { font-size: 0.65rem; color: var(--gris-2); margin-top: 3px; display: flex; justify-content: flex-end; gap: 4px; }
+  .msg-sender { font-size: 0.7rem; color: var(--verde-d); font-weight: 600; margin-bottom: 2px; }
+
+  /* Input */
+  .chat-input { padding: 10px 14px; background: var(--gris-1); display: flex; align-items: center; gap: 10px; flex-shrink: 0; border-top: 1px solid #ddd; }
+  .chat-input textarea { flex: 1; border: none; border-radius: 20px; padding: 10px 16px; font-size: 0.875rem; resize: none; outline: none; max-height: 120px; background: white; font-family: inherit; }
+  .agente-input { font-size: 0.75rem; color: var(--gris-2); margin-bottom: 4px; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 10px 18px; border-radius: 8px; font-size: 0.85rem; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+
+  .sin-conversaciones { padding: 40px 20px; text-align: center; color: var(--gris-2); font-size: 0.85rem; }
+  .loader { text-align: center; padding: 20px; color: var(--gris-2); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="width:36px;height:36px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🔧</div>
+  <h1>Autopartes Ro-Ca — CRM</h1>
+  <span class="status" id="status-txt">Cargando...</span>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>Conversaciones</h2>
+      <div class="filtros">
+        <button class="filtro-btn activo" data-filtro="todas" onclick="setFiltro('todas',this)">Todas</button>
+        <button class="filtro-btn" data-filtro="abierta" onclick="setFiltro('abierta',this)">Humano</button>
+        <button class="filtro-btn" data-filtro="bot" onclick="setFiltro('bot',this)">Bot</button>
+      </div>
+    </div>
+    <div class="conv-list" id="conv-list">
+      <div class="loader">Cargando conversaciones...</div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-empty">← Seleccioná una conversación</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script>
+// ── Config (from window.CRM_CONFIG set by config.js) ─────────────────────────
+const SUPA    = (window.CRM_CONFIG || {}).SUPA || '';
+const SKEY    = (window.CRM_CONFIG || {}).SKEY || '';
+const N8N     = (window.CRM_CONFIG || {}).N8N  || '';
+const AGENTE  = localStorage.getItem('crm_agente') || promptAgente();
+
+function promptAgente() {
+  const n = prompt('Tu nombre (para identificar quién envía el mensaje):') || 'Agente';
+  localStorage.setItem('crm_agente', n);
+  return n;
+}
+
+// ── Estado ───────────────────────────────────────────────────────────────────
+let conversaciones = [];
+let convActiva     = null;
+let mensajesActivos = [];
+let filtro         = 'todas';
+let pollingConvId  = null;
+
+// ── API Supabase ─────────────────────────────────────────────────────────────
+const H = { 'apikey': SKEY, 'Authorization': 'Bearer ' + SKEY, 'Content-Type': 'application/json' };
+
+async function sbGet(path) {
+  const r = await fetch(SUPA + '/rest/v1/' + path, { headers: H });
+  return r.json();
+}
+async function sbPost(path, body) {
+  const r = await fetch(SUPA + '/rest/v1/' + path, { method: 'POST', headers: { ...H, 'Prefer': 'return=representation' }, body: JSON.stringify(body) });
+  return r.json();
+}
+async function sbPatch(path, body) {
+  await fetch(SUPA + '/rest/v1/' + path, { method: 'PATCH', headers: { ...H, 'Prefer': 'return=minimal' }, body: JSON.stringify(body) });
+}
+
+// ── Cargar conversaciones ────────────────────────────────────────────────────
+async function cargarConversaciones() {
+  // Join conversaciones + contactos
+  const convs = await sbGet(
+    'crm_conversaciones?select=*,crm_contactos(jid,telefono,nombre)&order=updated_at.desc&limit=60'
+  );
+  conversaciones = Array.isArray(convs) ? convs : [];
+  renderConvList();
+  document.getElementById('status-txt').textContent =
+    conversaciones.length + ' conversaciones · ' + new Date().toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+}
+
+function setFiltro(f, btn) {
+  filtro = f;
+  document.querySelectorAll('.filtro-btn').forEach(b => b.classList.remove('activo'));
+  btn.classList.add('activo');
+  renderConvList();
+}
+
+function renderConvList() {
+  const lista = document.getElementById('conv-list');
+  let items = filtro === 'todas' ? conversaciones : conversaciones.filter(c => c.estado === filtro);
+
+  if (!items.length) {
+    lista.innerHTML = '<div class="sin-conversaciones">Sin conversaciones</div>';
+    return;
+  }
+
+  lista.innerHTML = items.map(c => {
+    const contacto = c.crm_contactos || {};
+    const nombre   = contacto.nombre || contacto.telefono || contacto.jid || '?';
+    const inicial  = nombre.charAt(0).toUpperCase();
+    const hora     = new Date(c.updated_at).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+    const activa   = convActiva && c.id === convActiva.id ? 'activa' : '';
+    const estadoBadge = `<span class="badge-estado badge-${c.estado}">${c.estado === 'bot' ? '🤖 Bot' : c.estado === 'abierta' ? '👤 Humano' : '✅ Resuelto'}</span>`;
+    return `
+      <div class="conv-item ${activa}" onclick="abrirChat('${c.id}')">
+        <div class="conv-avatar">${inicial}</div>
+        <div class="conv-info">
+          <div class="conv-nombre">${escapeHtml(nombre)}</div>
+          <div class="conv-preview">${escapeHtml(contacto.telefono ? '+' + contacto.telefono : contacto.jid || '')}</div>
+        </div>
+        <div class="conv-meta">
+          <span class="conv-hora">${hora}</span>
+          ${estadoBadge}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Abrir chat ───────────────────────────────────────────────────────────────
+async function abrirChat(convId) {
+  convActiva = conversaciones.find(c => c.id === convId);
+  if (!convActiva) return;
+  renderConvList(); // marcar activa
+  renderChatPanel();
+  await cargarMensajes();
+}
+
+function renderChatPanel() {
+  const c = convActiva;
+  const contacto = c.crm_contactos || {};
+  const nombre   = contacto.nombre || contacto.telefono || contacto.jid || '?';
+  const inicial  = nombre.charAt(0).toUpperCase();
+  const telefono = contacto.telefono ? '+' + contacto.telefono : contacto.jid || '';
+
+  const btnAccion = c.estado === 'bot'
+    ? `<button class="btn btn-tomar" onclick="cambiarEstado('abierta')">👤 Tomar control</button>`
+    : c.estado === 'abierta'
+    ? `<button class="btn btn-bot" onclick="cambiarEstado('bot')">🤖 Devolver al bot</button>
+       <button class="btn btn-resolver" onclick="cambiarEstado('resuelta')">✅ Resolver</button>`
+    : `<button class="btn btn-bot" onclick="cambiarEstado('bot')">🔄 Reabrir</button>`;
+
+  document.getElementById('chat-panel').innerHTML = `
+    <div class="chat-header">
+      <div class="chat-avatar">${inicial}</div>
+      <div class="chat-info">
+        <div class="chat-nombre">${escapeHtml(nombre)}</div>
+        <div class="chat-telefono">${escapeHtml(telefono)}</div>
+      </div>
+      <div class="acciones">${btnAccion}</div>
+    </div>
+    <div class="mensajes" id="mensajes-container"></div>
+    <div class="chat-input" id="chat-input-area">
+      <div style="flex:1">
+        <div class="agente-input">Enviando como: <strong>${escapeHtml(AGENTE)}</strong></div>
+        <textarea id="msg-input" rows="1" placeholder="Escribí un mensaje..." onkeydown="onKeyDown(event)" oninput="autoResize(this)"></textarea>
+      </div>
+      <button class="btn btn-send" onclick="enviarMensaje()">➤</button>
+    </div>`;
+}
+
+async function cargarMensajes() {
+  if (!convActiva) return;
+  const msgs = await sbGet(
+    'crm_mensajes?conversacion_id=eq.' + convActiva.id + '&order=timestamp.asc&limit=200'
+  );
+  mensajesActivos = Array.isArray(msgs) ? msgs : [];
+  renderMensajes();
+}
+
+function renderMensajes() {
+  const cont = document.getElementById('mensajes-container');
+  if (!cont) return;
+
+  if (!mensajesActivos.length) {
+    cont.innerHTML = '<div style="text-align:center;color:#999;padding:20px;font-size:0.8rem">Sin mensajes aún</div>';
+    return;
+  }
+
+  cont.innerHTML = mensajesActivos.map(m => {
+    const hora  = new Date(m.timestamp).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+    const esBot = m.enviado_por === 'bot' || m.enviado_por === 'Roquita';
+    const senderLabel = m.direccion === 'salida' && !esBot
+      ? `<div class="msg-sender">${escapeHtml(m.enviado_por)}</div>` : '';
+    return `
+      <div class="msg-row ${m.direccion}">
+        <div class="msg-burbuja">
+          ${senderLabel}
+          <div>${escapeHtml(m.contenido).replace(/\n/g,'<br>')}</div>
+          <div class="msg-hora">
+            ${hora}
+            ${m.direccion === 'salida' ? '<span style="color:#53bdeb">✓✓</span>' : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  cont.scrollTop = cont.scrollHeight;
+}
+
+// ── Enviar mensaje desde CRM ─────────────────────────────────────────────────
+async function enviarMensaje() {
+  const input = document.getElementById('msg-input');
+  if (!input || !convActiva) return;
+  const texto = input.value.trim();
+  if (!texto) return;
+
+  const contacto = convActiva.crm_contactos || {};
+  const jid = contacto.jid;
+  if (!jid) { toast('❌ No hay JID para este contacto'); return; }
+
+  input.value = '';
+  input.style.height = '';
+
+  try {
+    const r = await fetch(N8N + '/crm/enviar-mensaje', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jid, texto, agente: AGENTE, conv_id: convActiva.id })
+    });
+    if (!r.ok) throw new Error('Error ' + r.status);
+    // Optimistic update
+    mensajesActivos.push({
+      id: Date.now().toString(),
+      conversacion_id: convActiva.id,
+      contenido: texto,
+      direccion: 'salida',
+      enviado_por: AGENTE,
+      timestamp: new Date().toISOString()
+    });
+    renderMensajes();
+    toast('✓ Mensaje enviado');
+  } catch(e) {
+    toast('❌ Error al enviar: ' + e.message);
+  }
+}
+
+// ── Cambiar estado ───────────────────────────────────────────────────────────
+async function cambiarEstado(nuevoEstado) {
+  if (!convActiva) return;
+  try {
+    await fetch(N8N + '/crm/cambiar-estado', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conv_id: convActiva.id, estado: nuevoEstado, agente: AGENTE })
+    });
+    convActiva.estado = nuevoEstado;
+    // Actualizar en lista local
+    const idx = conversaciones.findIndex(c => c.id === convActiva.id);
+    if (idx >= 0) conversaciones[idx].estado = nuevoEstado;
+    renderChatPanel();
+    renderConvList();
+    await cargarMensajes();
+    toast('Estado cambiado a: ' + nuevoEstado);
+  } catch(e) {
+    toast('❌ Error: ' + e.message);
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function onKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(); }
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Polling ──────────────────────────────────────────────────────────────────
+async function pollMensajes() {
+  if (convActiva) await cargarMensajes();
+}
+async function pollConversaciones() {
+  await cargarConversaciones();
+}
+
+// Iniciar
+cargarConversaciones();
+setInterval(pollConversaciones, 8000);   // actualizar lista cada 8s
+setInterval(pollMensajes, 3000);          // actualizar mensajes cada 3s
+</script>
+</body>
+</html>
