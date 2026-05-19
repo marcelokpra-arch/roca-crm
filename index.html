@@ -93,22 +93,30 @@
   .sin-conversaciones { padding: 40px 20px; text-align: center; color: var(--gris-2); font-size: 0.85rem; }
   .loader { text-align: center; padding: 20px; color: var(--gris-2); font-size: 0.8rem; }
 
-  /* Mensajes no leídos */
-  .conv-item.no-leida { background: #f0fdf4; }
-  .conv-item.no-leida .conv-nombre { font-weight: 700; color: #000; }
-  .conv-item.no-leida .conv-preview { color: #111; font-weight: 500; }
-  .no-leida-dot { width: 11px; height: 11px; background: var(--verde); border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
-
-  /* Alertas de sistema */
-  @keyframes pulse-alert {
-    0%   { box-shadow: 0 0 0 0 rgba(245,158,11,.7); }
+  /* Animaciones */
+  @keyframes pulse-verde {
+    0%   { box-shadow: 0 0 0 0 rgba(37,211,102,.8); }
+    70%  { box-shadow: 0 0 0 8px rgba(37,211,102,0); }
+    100% { box-shadow: 0 0 0 0 rgba(37,211,102,0); }
+  }
+  @keyframes pulse-naranja {
+    0%   { box-shadow: 0 0 0 0 rgba(245,158,11,.8); }
     70%  { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
     100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
   }
+
+  /* Mensajes no leídos — verde pulsante */
+  .conv-item.no-leida { background: #f0fdf4; border-left: 3px solid var(--verde); }
+  .conv-item.no-leida .conv-nombre { font-weight: 700; color: #000; }
+  .conv-item.no-leida .conv-preview { color: #111; font-weight: 500; }
+  .conv-item.no-leida .conv-avatar { background: var(--verde); animation: pulse-verde 1.4s infinite; }
+  .no-leida-dot { width: 11px; height: 11px; background: var(--verde); border-radius: 50%; flex-shrink: 0; margin-top: 3px; animation: pulse-verde 1.4s infinite; }
+
+  /* Alertas de sistema — naranja pulsante */
   .conv-item.con-alerta { background: #fffbeb; border-left: 3px solid var(--naranja); }
   .conv-item.con-alerta .conv-nombre { font-weight: 700; color: #000; }
-  .conv-item.con-alerta .conv-avatar { background: var(--naranja); animation: pulse-alert 1.4s infinite; }
-  .alerta-dot { width: 10px; height: 10px; background: var(--naranja); border-radius: 50%; margin-top: 2px; animation: pulse-alert 1.4s infinite; flex-shrink: 0; }
+  .conv-item.con-alerta .conv-avatar { background: var(--naranja); animation: pulse-naranja 1.4s infinite; }
+  .alerta-dot { width: 10px; height: 10px; background: var(--naranja); border-radius: 50%; margin-top: 2px; animation: pulse-naranja 1.4s infinite; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -433,33 +441,47 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// ── Alertas de sistema ───────────────────────────────────────────────────────
-async function checkAlertas() {
+// ── Notificaciones (mensajes nuevos en background) ───────────────────────────
+async function checkNotificaciones() {
   try {
-    // Buscar mensajes nuevos de sistema desde el último check
+    // Traer TODOS los mensajes nuevos desde el último check (entrada + sistema)
     const nuevos = await sbGet(
-      'crm_mensajes?enviado_por=eq.sistema&timestamp=gt.' + encodeURIComponent(ultimoCheckTs) + '&order=timestamp.asc&limit=20'
+      'crm_mensajes?timestamp=gt.' + ultimoCheckTs + '&order=timestamp.asc&limit=30'
     );
     const msgs = Array.isArray(nuevos) ? nuevos : [];
     if (msgs.length === 0) return;
 
-    let hayNuevas = false;
+    let refrescaLista = false;
+
     msgs.forEach(m => {
-      // Solo alertar si NO es la conversación actualmente abierta
-      if (!convActiva || m.conversacion_id !== convActiva.id) {
-        alertasConvs.add(m.conversacion_id);
-        hayNuevas = true;
-        // Mostrar toast con contexto
-        const conv = conversaciones.find(c => c.id === m.conversacion_id);
-        const nombre = conv ? displayNombre(conv.crm_contactos || {}) : 'Cliente';
-        const resumen = m.contenido.replace(/\n/g, ' ').substring(0, 60);
-        toast('🔔 ' + nombre + ': ' + resumen);
+      const esConvActiva = convActiva && m.conversacion_id === convActiva.id;
+      const conv   = conversaciones.find(c => c.id === m.conversacion_id);
+      const nombre = conv ? displayNombre(conv.crm_contactos || {}) : 'Cliente';
+      const texto  = m.contenido.replace(/\n/g, ' ').substring(0, 55);
+
+      if (m.enviado_por === 'sistema') {
+        // Alerta naranja (pedido en prep, quiere persona, GPS, etc.)
+        if (!esConvActiva) {
+          alertasConvs.add(m.conversacion_id);
+          toast('🔔 ' + nombre + ': ' + texto);
+          refrescaLista = true;
+        }
+      } else if (m.direccion === 'entrada') {
+        // Mensaje nuevo del cliente
+        if (!esConvActiva) {
+          toast('💬 ' + nombre + ': ' + texto);
+          refrescaLista = true;
+        }
       }
     });
 
-    // Avanzar el timestamp de referencia
+    // Avanzar el cursor temporal
     ultimoCheckTs = msgs[msgs.length - 1].timestamp;
-    if (hayNuevas) renderConvList();
+
+    if (refrescaLista) {
+      // Refrescar lista para que updated_at sea actual y el dot verde aparezca
+      await cargarConversaciones();
+    }
   } catch(e) { /* silencioso */ }
 }
 
@@ -473,9 +495,9 @@ async function pollConversaciones() {
 
 // Iniciar
 cargarConversaciones();
-setInterval(pollConversaciones, 8000);   // actualizar lista cada 8s
-setInterval(pollMensajes, 3000);          // actualizar mensajes cada 3s
-setInterval(checkAlertas, 5000);          // detectar alertas de sistema cada 5s
+setInterval(pollMensajes, 3000);             // mensajes de la conv activa cada 3s
+setInterval(pollConversaciones, 10000);      // lista completa cada 10s
+setInterval(checkNotificaciones, 4000);      // detectar nuevos mensajes cada 4s
 </script>
 </body>
 </html>
