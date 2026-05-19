@@ -213,6 +213,7 @@
 const SUPA    = 'https://uqmuiwrauscyxsrdezjr.supabase.co';
 const SKEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxbXVpd3JhdXNjeXhzcmRlempyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NzQ0MTYsImV4cCI6MjA5MjM1MDQxNn0.nQy8zXKrPt7pQqYkGMPVKPu4dq71ATn2n4fKtIpUdnk';
 const N8N     = 'https://n8n-n8n.7gipwe.easypanel.host/webhook';
+const GOOGLE_REVIEW = 'https://g.page/r/REEMPLAZAR_CON_LINK_REAL/review';
 const AGENTE  = localStorage.getItem('crm_agente') || promptAgente();
 
 function promptAgente() {
@@ -600,13 +601,40 @@ async function actualizarPedidoEstado(id, estado) {
   try {
     await sbPatch('crm_pedidos?id=eq.' + id, { estado, updated_at: new Date().toISOString() });
     const p = pedidos.find(x => x.id === id);
-    if (p) p.estado = estado;
+    if (p) {
+      p.estado = estado;
+      await enviarMsgPedido(p, estado);
+    }
     renderPedidos();
     actualizarBadgePedidos();
     toast('Pedido ' + estado);
   } catch(e) {
     toast('❌ Error: ' + e.message);
   }
+}
+
+async function enviarMsgPedido(p, estado) {
+  if (!p.cliente_jid) return;
+  const firma = '\n\n_Autopartes Ro-Ca 🔧_';
+  const esDomicilio = p.tipo === 'bateria_domicilio' || p.tipo === 'servicio_domicilio';
+  let texto = null;
+
+  if (estado === 'confirmado') {
+    texto = esDomicilio
+      ? '¡Tu pedido ha sido enviado! 🚗📦 Esperalo, ya va en camino.' + firma
+      : 'Estamos preparando tu pedido 🔧 Te avisamos cuando esté listo para retirar en el local.\n📍 *Av. Gonzalez Lelong 1571, Formosa-Formosa*' + firma;
+  } else if (estado === 'completado') {
+    texto = '¡Hemos entregado tu pedido! 📦 Muchas gracias por tu compra 🙌\n\n¿Podés dejarnos una reseña en Google? Nos ayuda muchísimo 🌟\n👉 ' + GOOGLE_REVIEW + firma;
+  }
+
+  if (!texto) return;
+  try {
+    await fetch(N8N + '/crm/enviar-mensaje', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jid: p.cliente_jid, texto, agente: 'Sistema', conv_id: p.conversacion_id })
+    });
+  } catch(e) { console.warn('WhatsApp msg error:', e); }
 }
 
 // ── Notificaciones (mensajes nuevos en background) ───────────────────────────
