@@ -92,6 +92,16 @@
 
   .sin-conversaciones { padding: 40px 20px; text-align: center; color: var(--gris-2); font-size: 0.85rem; }
   .loader { text-align: center; padding: 20px; color: var(--gris-2); font-size: 0.8rem; }
+
+  /* Alertas de sistema */
+  @keyframes pulse-alert {
+    0%   { box-shadow: 0 0 0 0 rgba(245,158,11,.7); }
+    70%  { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
+    100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+  }
+  .conv-item.con-alerta { background: #fffbeb; border-left: 3px solid var(--naranja); }
+  .conv-item.con-alerta .conv-avatar { background: var(--naranja); animation: pulse-alert 1.4s infinite; }
+  .alerta-dot { width: 10px; height: 10px; background: var(--naranja); border-radius: 50%; margin-top: 2px; animation: pulse-alert 1.4s infinite; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -140,11 +150,27 @@ function promptAgente() {
 }
 
 // ── Estado ───────────────────────────────────────────────────────────────────
-let conversaciones = [];
-let convActiva     = null;
+let conversaciones  = [];
+let convActiva      = null;
 let mensajesActivos = [];
-let filtro         = 'todas';
-let pollingConvId  = null;
+let filtro          = 'todas';
+let pollingConvId   = null;
+let alertasConvs    = new Set();   // IDs de conversaciones con alerta pendiente
+let ultimoCheckTs   = new Date().toISOString(); // solo alertas NUEVAS desde que cargó la página
+
+// ── Helpers de contacto ──────────────────────────────────────────────────────
+function jidToTelefono(jid) {
+  if (!jid || jid.includes('@lid')) return null;
+  return jid.replace(/@[^@]+$/, '');
+}
+function displayTelefono(contacto) {
+  if (contacto.telefono) return '+' + contacto.telefono;
+  const t = jidToTelefono(contacto.jid);
+  return t ? '+' + t : (contacto.jid || '');
+}
+function displayNombre(contacto) {
+  return contacto.nombre || contacto.telefono || jidToTelefono(contacto.jid) || contacto.jid || '?';
+}
 
 // ── API Supabase ─────────────────────────────────────────────────────────────
 const H = { 'apikey': SKEY, 'Authorization': 'Bearer ' + SKEY, 'Content-Type': 'application/json' };
@@ -190,22 +216,26 @@ function renderConvList() {
   }
 
   lista.innerHTML = items.map(c => {
-    const contacto = c.crm_contactos || {};
-    const nombre   = contacto.nombre || contacto.telefono || contacto.jid || '?';
-    const inicial  = nombre.charAt(0).toUpperCase();
-    const hora     = new Date(c.updated_at).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
-    const activa   = convActiva && c.id === convActiva.id ? 'activa' : '';
+    const contacto  = c.crm_contactos || {};
+    const nombre    = displayNombre(contacto);
+    const telefono  = displayTelefono(contacto);
+    const inicial   = nombre.charAt(0).toUpperCase();
+    const hora      = new Date(c.updated_at).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+    const activa    = convActiva && c.id === convActiva.id ? 'activa' : '';
+    const alerta    = alertasConvs.has(c.id) ? 'con-alerta' : '';
+    const alertaDot = alertasConvs.has(c.id) ? '<div class="alerta-dot"></div>' : '';
     const estadoBadge = `<span class="badge-estado badge-${c.estado}">${c.estado === 'bot' ? '🤖 Bot' : c.estado === 'abierta' ? '👤 Humano' : '✅ Resuelto'}</span>`;
     return `
-      <div class="conv-item ${activa}" onclick="abrirChat('${c.id}')">
+      <div class="conv-item ${activa} ${alerta}" onclick="abrirChat('${c.id}')">
         <div class="conv-avatar">${inicial}</div>
         <div class="conv-info">
           <div class="conv-nombre">${escapeHtml(nombre)}</div>
-          <div class="conv-preview">${escapeHtml(contacto.telefono ? '+' + contacto.telefono : contacto.jid || '')}</div>
+          <div class="conv-preview">${escapeHtml(telefono)}</div>
         </div>
         <div class="conv-meta">
           <span class="conv-hora">${hora}</span>
           ${estadoBadge}
+          ${alertaDot}
         </div>
       </div>`;
   }).join('');
@@ -215,7 +245,8 @@ function renderConvList() {
 async function abrirChat(convId) {
   convActiva = conversaciones.find(c => c.id === convId);
   if (!convActiva) return;
-  renderConvList(); // marcar activa
+  alertasConvs.delete(convId); // limpiar alerta al abrir
+  renderConvList(); // marcar activa y quitar pulsado
   renderChatPanel();
   await cargarMensajes();
 }
@@ -223,9 +254,9 @@ async function abrirChat(convId) {
 function renderChatPanel() {
   const c = convActiva;
   const contacto = c.crm_contactos || {};
-  const nombre   = contacto.nombre || contacto.telefono || contacto.jid || '?';
+  const nombre   = displayNombre(contacto);
   const inicial  = nombre.charAt(0).toUpperCase();
-  const telefono = contacto.telefono ? '+' + contacto.telefono : contacto.jid || '';
+  const telefono = displayTelefono(contacto);
 
   const btnAccion = c.estado === 'bot'
     ? `<button class="btn btn-tomar" onclick="cambiarEstado('abierta')">👤 Tomar control</button>`
@@ -377,6 +408,36 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
+// ── Alertas de sistema ───────────────────────────────────────────────────────
+async function checkAlertas() {
+  try {
+    // Buscar mensajes nuevos de sistema desde el último check
+    const nuevos = await sbGet(
+      'crm_mensajes?enviado_por=eq.sistema&timestamp=gt.' + encodeURIComponent(ultimoCheckTs) + '&order=timestamp.asc&limit=20'
+    );
+    const msgs = Array.isArray(nuevos) ? nuevos : [];
+    if (msgs.length === 0) return;
+
+    let hayNuevas = false;
+    msgs.forEach(m => {
+      // Solo alertar si NO es la conversación actualmente abierta
+      if (!convActiva || m.conversacion_id !== convActiva.id) {
+        alertasConvs.add(m.conversacion_id);
+        hayNuevas = true;
+        // Mostrar toast con contexto
+        const conv = conversaciones.find(c => c.id === m.conversacion_id);
+        const nombre = conv ? displayNombre(conv.crm_contactos || {}) : 'Cliente';
+        const resumen = m.contenido.replace(/\n/g, ' ').substring(0, 60);
+        toast('🔔 ' + nombre + ': ' + resumen);
+      }
+    });
+
+    // Avanzar el timestamp de referencia
+    ultimoCheckTs = msgs[msgs.length - 1].timestamp;
+    if (hayNuevas) renderConvList();
+  } catch(e) { /* silencioso */ }
+}
+
 // ── Polling ──────────────────────────────────────────────────────────────────
 async function pollMensajes() {
   if (convActiva) await cargarMensajes();
@@ -389,6 +450,7 @@ async function pollConversaciones() {
 cargarConversaciones();
 setInterval(pollConversaciones, 8000);   // actualizar lista cada 8s
 setInterval(pollMensajes, 3000);          // actualizar mensajes cada 3s
+setInterval(checkAlertas, 5000);          // detectar alertas de sistema cada 5s
 </script>
 </body>
 </html>
