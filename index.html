@@ -93,6 +93,12 @@
   .sin-conversaciones { padding: 40px 20px; text-align: center; color: var(--gris-2); font-size: 0.85rem; }
   .loader { text-align: center; padding: 20px; color: var(--gris-2); font-size: 0.8rem; }
 
+  /* Mensajes no leídos */
+  .conv-item.no-leida { background: #f0fdf4; }
+  .conv-item.no-leida .conv-nombre { font-weight: 700; color: #000; }
+  .conv-item.no-leida .conv-preview { color: #111; font-weight: 500; }
+  .no-leida-dot { width: 11px; height: 11px; background: var(--verde); border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+
   /* Alertas de sistema */
   @keyframes pulse-alert {
     0%   { box-shadow: 0 0 0 0 rgba(245,158,11,.7); }
@@ -100,6 +106,7 @@
     100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
   }
   .conv-item.con-alerta { background: #fffbeb; border-left: 3px solid var(--naranja); }
+  .conv-item.con-alerta .conv-nombre { font-weight: 700; color: #000; }
   .conv-item.con-alerta .conv-avatar { background: var(--naranja); animation: pulse-alert 1.4s infinite; }
   .alerta-dot { width: 10px; height: 10px; background: var(--naranja); border-radius: 50%; margin-top: 2px; animation: pulse-alert 1.4s infinite; flex-shrink: 0; }
 </style>
@@ -157,6 +164,18 @@ let filtro          = 'todas';
 let pollingConvId   = null;
 let alertasConvs    = new Set();   // IDs de conversaciones con alerta pendiente
 let ultimoCheckTs   = new Date().toISOString(); // solo alertas NUEVAS desde que cargó la página
+
+// ── No leídos ────────────────────────────────────────────────────────────────
+function getLastRead(convId) {
+  return parseInt(localStorage.getItem('crm_lr_' + convId) || '0', 10);
+}
+function setLastRead(convId) {
+  localStorage.setItem('crm_lr_' + convId, Date.now().toString());
+}
+function esNoLeida(conv) {
+  if (convActiva && conv.id === convActiva.id) return false; // la que estoy viendo no cuenta
+  return new Date(conv.updated_at).getTime() > getLastRead(conv.id);
+}
 
 // ── Helpers de contacto ──────────────────────────────────────────────────────
 function jidToTelefono(jid) {
@@ -222,11 +241,15 @@ function renderConvList() {
     const inicial   = nombre.charAt(0).toUpperCase();
     const hora      = new Date(c.updated_at).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
     const activa    = convActiva && c.id === convActiva.id ? 'activa' : '';
-    const alerta    = alertasConvs.has(c.id) ? 'con-alerta' : '';
-    const alertaDot = alertasConvs.has(c.id) ? '<div class="alerta-dot"></div>' : '';
+    const tieneAlerta = alertasConvs.has(c.id);
+    const noLeida   = !tieneAlerta && esNoLeida(c); // alerta tiene prioridad visual
+    const clases    = [activa, tieneAlerta ? 'con-alerta' : '', noLeida ? 'no-leida' : ''].filter(Boolean).join(' ');
+    const indicador = tieneAlerta
+      ? '<div class="alerta-dot"></div>'
+      : noLeida ? '<div class="no-leida-dot"></div>' : '';
     const estadoBadge = `<span class="badge-estado badge-${c.estado}">${c.estado === 'bot' ? '🤖 Bot' : c.estado === 'abierta' ? '👤 Humano' : '✅ Resuelto'}</span>`;
     return `
-      <div class="conv-item ${activa} ${alerta}" onclick="abrirChat('${c.id}')">
+      <div class="conv-item ${clases}" onclick="abrirChat('${c.id}')">
         <div class="conv-avatar">${inicial}</div>
         <div class="conv-info">
           <div class="conv-nombre">${escapeHtml(nombre)}</div>
@@ -235,7 +258,7 @@ function renderConvList() {
         <div class="conv-meta">
           <span class="conv-hora">${hora}</span>
           ${estadoBadge}
-          ${alertaDot}
+          ${indicador}
         </div>
       </div>`;
   }).join('');
@@ -245,8 +268,9 @@ function renderConvList() {
 async function abrirChat(convId) {
   convActiva = conversaciones.find(c => c.id === convId);
   if (!convActiva) return;
-  alertasConvs.delete(convId); // limpiar alerta al abrir
-  renderConvList(); // marcar activa y quitar pulsado
+  alertasConvs.delete(convId); // limpiar alerta
+  setLastRead(convId);          // marcar como leída
+  renderConvList();
   renderChatPanel();
   await cargarMensajes();
 }
@@ -357,6 +381,7 @@ async function enviarMensaje() {
       timestamp: new Date().toISOString()
     });
     renderMensajes();
+    setLastRead(convActiva.id); // el agente leyó esta conv al enviar
     toast('✓ Mensaje enviado');
   } catch(e) {
     toast('❌ Error al enviar: ' + e.message);
