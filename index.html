@@ -75,6 +75,8 @@
   .msg-burbuja { max-width: 65%; padding: 8px 12px; border-radius: 10px; font-size: 0.875rem; line-height: 1.45; position: relative; word-wrap: break-word; }
   .msg-row.entrada .msg-burbuja { background: white; border-top-left-radius: 0; }
   .msg-row.salida  .msg-burbuja { background: #d9fdd3; border-top-right-radius: 0; }
+  .msg-sistema { width: 100%; display: flex; justify-content: center; margin: 8px 0; }
+  .msg-sistema-inner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 8px 14px; font-size: 0.8rem; color: #856404; max-width: 85%; white-space: pre-wrap; text-align: center; }
   .msg-enviado { font-size: 0.65rem; color: var(--gris-2); margin-top: 2px; text-align: right; }
   .msg-hora { font-size: 0.65rem; color: var(--gris-2); margin-top: 3px; display: flex; justify-content: flex-end; gap: 4px; }
   .msg-sender { font-size: 0.7rem; color: var(--verde-d); font-weight: 600; margin-bottom: 2px; }
@@ -124,12 +126,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="config.js"></script>
 <script>
-// ── Config (from window.CRM_CONFIG set by config.js) ─────────────────────────
-const SUPA    = (window.CRM_CONFIG || {}).SUPA || '';
-const SKEY    = (window.CRM_CONFIG || {}).SKEY || '';
-const N8N     = (window.CRM_CONFIG || {}).N8N  || '';
+// ── Config ───────────────────────────────────────────────────────────────────
+const SUPA    = 'https://uqmuiwrauscyxsrdezjr.supabase.co';
+const SKEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxbXVpd3JhdXNjeXhzcmRlempyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NzQ0MTYsImV4cCI6MjA5MjM1MDQxNn0.nQy8zXKrPt7pQqYkGMPVKPu4dq71ATn2n4fKtIpUdnk';
+const N8N     = 'https://n8n-n8n.7gipwe.easypanel.host/webhook';
 const AGENTE  = localStorage.getItem('crm_agente') || promptAgente();
 
 function promptAgente() {
@@ -272,6 +273,9 @@ function renderMensajes() {
 
   cont.innerHTML = mensajesActivos.map(m => {
     const hora  = new Date(m.timestamp).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'});
+    if (m.enviado_por === 'sistema') {
+      return `<div class="msg-sistema"><div class="msg-sistema-inner">🔔 ${escapeHtml(m.contenido).replace(/\n/g,'<br>')}<br><span style="font-size:0.65rem;opacity:0.7">${hora}</span></div></div>`;
+    }
     const esBot = m.enviado_por === 'bot' || m.enviado_por === 'Roquita';
     const senderLabel = m.direccion === 'salida' && !esBot
       ? `<div class="msg-sender">${escapeHtml(m.enviado_por)}</div>` : '';
