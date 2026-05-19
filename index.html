@@ -622,7 +622,7 @@ async function enviarMsgPedido(p, estado) {
   if (estado === 'confirmado') {
     texto = esDomicilio
       ? '¡Tu pedido ha sido enviado! 🚗📦 Esperalo, ya va en camino.' + firma
-      : 'Estamos preparando tu pedido 🔧 Te avisamos cuando esté listo para retirar en el local.\n📍 *Av. Gonzalez Lelong 1571, Formosa-Formosa*' + firma;
+      : '¡Tu pedido está listo para retirar! 🔧 Pasate cuando quieras por el local:\n📍 *Av. Gonzalez Lelong 1571, Formosa-Formosa*' + firma;
   } else if (estado === 'completado') {
     texto = '¡Hemos entregado tu pedido! 📦 Muchas gracias por tu compra 🙌\n\n¿Podés dejarnos una reseña en Google? Nos ayuda muchísimo 🌟\n👉 ' + GOOGLE_REVIEW + firma;
   }
