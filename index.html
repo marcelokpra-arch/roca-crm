@@ -520,7 +520,10 @@ let filtroPedido = 'pendiente';
 
 async function cargarPedidos() {
   try {
-    const data = await sbGet('crm_pedidos?order=created_at.desc&limit=100');
+    const data = await sbGet(
+      'crm_pedidos?order=created_at.desc&limit=100' +
+      '&select=*,crm_conversaciones(crm_contactos(jid,telefono,nombre))'
+    );
     pedidos = Array.isArray(data) ? data : [];
     renderPedidos();
     actualizarBadgePedidos();
@@ -562,10 +565,18 @@ function renderPedidos() {
     const fecha = new Date(p.created_at).toLocaleString('es-AR', {
       day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
     });
+    // Teléfono real: preferir crm_contactos (resuelto por WAHA), luego cliente_telefono
+    const contacto    = p.crm_conversaciones?.crm_contactos || {};
+    const telReal     = contacto.telefono || null;
+    const telFallback = p.cliente_telefono && !p.cliente_telefono.includes('@') && p.cliente_telefono.length <= 15
+      ? p.cliente_telefono : null;
+    const telMostrar  = telReal || telFallback;
+    const nombreMostrar = p.cliente_nombre || contacto.nombre || null;
+
     const tags = [
-      p.vehiculo         ? '🚙 ' + p.vehiculo         : null,
-      p.precio_estimado  ? '💰 ' + p.precio_estimado  : null,
-      p.cliente_telefono ? '📞 +' + p.cliente_telefono : null,
+      p.vehiculo    ? '🚙 ' + p.vehiculo    : null,
+      p.precio_estimado ? '💰 ' + p.precio_estimado : null,
+      telMostrar    ? '📞 +' + telMostrar   : null,
     ].filter(Boolean);
 
     const botonesAccion = p.estado === 'pendiente'
@@ -585,7 +596,7 @@ function renderPedidos() {
         <div class="pedido-icono ${p.tipo}">${icono}</div>
         <div class="pedido-data">
           <div class="pedido-titulo">${escapeHtml(p.descripcion)}</div>
-          <div class="pedido-subtitulo">${tipo}${p.cliente_nombre ? ' · ' + escapeHtml(p.cliente_nombre) : ''}</div>
+          <div class="pedido-subtitulo">${tipo}${nombreMostrar ? ' · ' + escapeHtml(nombreMostrar) : ''}</div>
           <div class="pedido-tags">${tags.map(t => `<span class="pedido-tag">${escapeHtml(t)}</span>`).join('')}</div>
         </div>
         <div class="pedido-acciones">
