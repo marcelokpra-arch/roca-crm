@@ -738,10 +738,13 @@ async function pollConversaciones() {
 }
 
 // Iniciar
-const hoyISO = new Date().toISOString().slice(0,10);
-document.getElementById('filtro-fecha').value = hoyISO;
-document.getElementById('filtro-tel').addEventListener('input', renderPedidos);
-document.getElementById('filtro-fecha').addEventListener('change', renderPedidos);
+try {
+  const hoyISO = new Date().toISOString().slice(0,10);
+  const fechaEl = document.getElementById('filtro-fecha');
+  const telEl   = document.getElementById('filtro-tel');
+  if (fechaEl) { fechaEl.value = hoyISO; fechaEl.addEventListener('change', renderPedidos); }
+  if (telEl)   { telEl.addEventListener('input', renderPedidos); }
+} catch(e) { console.warn('init filtros:', e); }
 
 cargarConversaciones();
 cargarPedidos();
