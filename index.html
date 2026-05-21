@@ -197,8 +197,8 @@
 <div id="vista-pedidos" class="pedidos-panel" style="display:none">
   <div class="pedidos-toolbar">
     <h2>📦 Pedidos de Clientes</h2>
-    <button id="btn-pendientes" class="filtro-pedido-btn activo" onclick="setFiltroPedido('pendiente',this)">Pendientes <span id="badge-pend" style="display:none;background:white;color:#b91c1c;border-radius:10px;padding:1px 6px;font-size:0.7rem;font-weight:700;vertical-align:middle">0</span></button>
-    <button id="btn-confirmados" class="filtro-pedido-btn" onclick="setFiltroPedido('confirmado',this)">Confirmados <span id="badge-conf" style="display:none;background:white;color:#1d4ed8;border-radius:10px;padding:1px 6px;font-size:0.7rem;font-weight:700;vertical-align:middle">0</span></button>
+    <button id="btn-pendientes" class="filtro-pedido-btn activo" onclick="setFiltroPedido('pendiente',this)">Pendientes <span id="badge-pend" style="visibility:hidden;display:inline;background:white;color:#b91c1c;border-radius:10px;padding:1px 6px;font-size:0.7rem;font-weight:700;vertical-align:middle">0</span></button>
+    <button id="btn-confirmados" class="filtro-pedido-btn" onclick="setFiltroPedido('confirmado',this)">Confirmados <span id="badge-conf" style="visibility:hidden;display:inline;background:white;color:#1d4ed8;border-radius:10px;padding:1px 6px;font-size:0.7rem;font-weight:700;vertical-align:middle">0</span></button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('completado',this)">Completados</button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('todos',this)">Todos</button>
   </div>
@@ -537,9 +537,9 @@ function actualizarBadgePedidos() {
   const badge = document.getElementById('pedidos-badge');
   if (badge) { badge.style.display = nPend > 0 ? 'inline' : 'none'; badge.textContent = nPend; }
   const bPend = document.getElementById('badge-pend');
-  if (bPend) { bPend.textContent = nPend; bPend.style.display = nPend > 0 ? 'inline' : 'none'; }
+  if (bPend) { bPend.textContent = nPend; bPend.style.visibility = nPend > 0 ? 'visible' : 'hidden'; bPend.style.display = 'inline'; }
   const bConf = document.getElementById('badge-conf');
-  if (bConf) { bConf.textContent = nConf; bConf.style.display = nConf > 0 ? 'inline' : 'none'; }
+  if (bConf) { bConf.textContent = nConf; bConf.style.visibility = nConf > 0 ? 'visible' : 'hidden'; bConf.style.display = 'inline'; }
 }
 
 function setFiltroPedido(f, btn) {
@@ -547,6 +547,7 @@ function setFiltroPedido(f, btn) {
   document.querySelectorAll('.filtro-pedido-btn').forEach(b => b.classList.remove('activo'));
   btn.classList.add('activo');
   renderPedidos();
+  actualizarBadgePedidos();
 }
 
 function renderPedidos() {
