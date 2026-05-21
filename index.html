@@ -199,8 +199,8 @@
 <div id="vista-pedidos" class="pedidos-panel" style="display:none">
   <div class="pedidos-toolbar">
     <h2>📦 Pedidos de Clientes</h2>
-    <button id="btn-pendientes" class="filtro-pedido-btn activo" onclick="setFiltroPedido('pendiente',this)">Pendientes</button>
-    <button id="btn-confirmados" class="filtro-pedido-btn" onclick="setFiltroPedido('confirmado',this)">Confirmados</button>
+    <button id="btn-pendientes" class="filtro-pedido-btn activo" onclick="setFiltroPedido('pendiente',this)">Pendientes <span id="badge-pendientes" style="display:none;background:white;border-radius:10px;padding:1px 7px;font-size:0.72rem;font-weight:800;margin-left:4px;color:#b91c1c"></span></button>
+    <button id="btn-confirmados" class="filtro-pedido-btn" onclick="setFiltroPedido('confirmado',this)">Confirmados <span id="badge-confirmados" style="display:none;background:white;border-radius:10px;padding:1px 7px;font-size:0.72rem;font-weight:800;margin-left:4px;color:#1d4ed8"></span></button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('completado',this)">Completados</button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('todos',this)">Todos</button>
   </div>
@@ -543,11 +543,10 @@ function actualizarBadgePedidos() {
   const nConf = pedidos.filter(p => p.estado === 'confirmado').length;
   const badge = document.getElementById('pedidos-badge');
   if (badge) { badge.style.display = nPend > 0 ? 'inline' : 'none'; badge.textContent = nPend; }
-  const BS = 'background:white;border-radius:10px;padding:1px 7px;font-size:0.72rem;font-weight:800;margin-left:4px';
-  const btnP = document.getElementById('btn-pendientes');
-  if (btnP) btnP.innerHTML = nPend > 0 ? 'Pendientes <span style="' + BS + ';color:#b91c1c">' + nPend + '</span>' : 'Pendientes';
-  const btnC = document.getElementById('btn-confirmados');
-  if (btnC) btnC.innerHTML = nConf > 0 ? 'Confirmados <span style="' + BS + ';color:#1d4ed8">' + nConf + '</span>' : 'Confirmados';
+  const bP = document.getElementById('badge-pendientes');
+  if (bP) { bP.textContent = nPend; bP.style.display = nPend > 0 ? 'inline' : 'none'; }
+  const bC = document.getElementById('badge-confirmados');
+  if (bC) { bC.textContent = nConf; bC.style.display = nConf > 0 ? 'inline' : 'none'; }
 }
 
 function setFiltroPedido(f, btn) {
