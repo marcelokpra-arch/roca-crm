@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Ro-Ca CRM — Conversaciones</title>
 <link rel="icon" type="image/png" href="https://files.catbox.moe/fo74hu.png">
 <style>
@@ -201,6 +203,11 @@
     <button id="btn-confirmados" class="filtro-pedido-btn" onclick="setFiltroPedido('confirmado',this)">Confirmados</button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('completado',this)">Completados</button>
     <button class="filtro-pedido-btn" onclick="setFiltroPedido('todos',this)">Todos</button>
+  </div>
+  <div id="filtros-completados" style="display:none;padding:8px 16px;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--gris-1)">
+    <input id="filtro-fecha" type="date" style="padding:5px 10px;border:1px solid var(--gris-1);border-radius:8px;font-size:0.8rem;cursor:pointer">
+    <input id="filtro-tel" type="text" placeholder="🔍 Buscar por teléfono..." style="padding:5px 10px;border:1px solid var(--gris-1);border-radius:8px;font-size:0.8rem;flex:1;min-width:160px">
+    <button onclick="limpiarFiltrosCompletados()" style="padding:5px 10px;border:none;background:var(--gris-1);border-radius:8px;font-size:0.8rem;cursor:pointer;color:var(--gris-2)">✕ Limpiar</button>
   </div>
   <div class="pedidos-body" id="pedidos-body">
     <div class="loader">Cargando pedidos...</div>
@@ -547,14 +554,36 @@ function setFiltroPedido(f, btn) {
   filtroPedido = f;
   document.querySelectorAll('.filtro-pedido-btn').forEach(b => b.classList.remove('activo'));
   btn.classList.add('activo');
+  const fc = document.getElementById('filtros-completados');
+  if (fc) fc.style.display = f === 'completado' ? 'flex' : 'none';
   renderPedidos();
   actualizarBadgePedidos();
+}
+
+function limpiarFiltrosCompletados() {
+  const hoy = new Date().toISOString().slice(0,10);
+  document.getElementById('filtro-fecha').value = hoy;
+  document.getElementById('filtro-tel').value = '';
+  renderPedidos();
 }
 
 function renderPedidos() {
   const cont = document.getElementById('pedidos-body');
   if (!cont) return;
-  const items = filtroPedido === 'todos' ? pedidos : pedidos.filter(p => p.estado === filtroPedido);
+  let items = filtroPedido === 'todos' ? pedidos : pedidos.filter(p => p.estado === filtroPedido);
+
+  // Filtros extra para completados
+  if (filtroPedido === 'completado') {
+    const fechaEl = document.getElementById('filtro-fecha');
+    const telEl   = document.getElementById('filtro-tel');
+    const fecha   = fechaEl ? fechaEl.value : '';
+    const tel     = telEl   ? telEl.value.trim().replace(/\D/g,'') : '';
+    if (fecha) items = items.filter(p => p.created_at && p.created_at.startsWith(fecha));
+    if (tel)   items = items.filter(p => {
+      const t = (p.cliente_telefono || '') + (p.crm_conversaciones?.crm_contactos?.telefono || '');
+      return t.replace(/\D/g,'').includes(tel);
+    });
+  }
 
   if (!items.length) {
     cont.innerHTML = `<div style="text-align:center;color:var(--gris-2);padding:50px;font-size:0.9rem">
@@ -710,12 +739,18 @@ async function pollConversaciones() {
 }
 
 // Iniciar
+const hoyISO = new Date().toISOString().slice(0,10);
+document.getElementById('filtro-fecha').value = hoyISO;
+document.getElementById('filtro-tel').addEventListener('input', renderPedidos);
+document.getElementById('filtro-fecha').addEventListener('change', renderPedidos);
+
 cargarConversaciones();
 cargarPedidos();
 setInterval(pollMensajes, 3000);             // mensajes de la conv activa cada 3s
 setInterval(pollConversaciones, 10000);      // lista completa cada 10s
 setInterval(checkNotificaciones, 4000);      // detectar nuevos mensajes cada 4s
-setInterval(cargarPedidos, 20000);           // badge de pedidos cada 20s
+setInterval(cargarPedidos, 20000);           // recarga pedidos cada 20s
+setInterval(actualizarBadgePedidos, 2000);   // badges siempre actualizados
 </script>
 </body>
 </html>
